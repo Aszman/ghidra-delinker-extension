@@ -14,6 +14,10 @@
 package ghidra.app.util;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Optional;
+
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -29,10 +33,20 @@ public enum SymbolPreference {
 
 	private final String label;
 	private final Function<Collection<Symbol>, Symbol> picker;
+	private final Set<String> preferredNames;
 
 	SymbolPreference(String label, Function<Collection<Symbol>, Symbol> picker) {
 		this.label = label;
 		this.picker = picker;
+		this.preferredNames = new HashSet<>();
+	}
+
+	public void clearCustomPreferrences() {
+		preferredNames.clear();
+	} 
+
+	public void addPreferredName(String name) {
+		preferredNames.add(name);
 	}
 
 	@Override
@@ -41,7 +55,13 @@ public enum SymbolPreference {
 	}
 
 	public Symbol pick(Collection<Symbol> candidates) {
-		return picker.apply(candidates);
+		return pickPreferred(candidates).orElse(picker.apply(candidates));
+	}
+
+	private Optional<Symbol> pickPreferred(Collection<Symbol> symbols) {
+		return symbols.stream()
+			.filter(s -> preferredNames.contains(s.getName(true)))
+			.findAny();
 	}
 
 	private static Symbol pickPrimary(Collection<Symbol> symbols) {

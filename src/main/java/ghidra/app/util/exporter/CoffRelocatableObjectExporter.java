@@ -510,4 +510,8 @@ public class CoffRelocatableObjectExporter extends Exporter {
 			Writable.write(writables, bufferedOutputStream);
 		}
 	}
+
+	public SymbolPreference getActiveSymbolPreference() {
+		return symbolNamePreference;
+	}
 }

@@ -15,6 +15,7 @@ package ghidra.app.util;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -26,14 +27,14 @@ import java.util.stream.Collectors;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.symbol.Symbol;
 
-public class SymbolInformationCollector
-		implements Collector<Symbol, Map<Address, Set<Symbol>>, Map<Address, SymbolInformation>> {
+public class MultiSymbolInformationCollector
+		implements Collector<Symbol, Map<Address, Set<Symbol>>, Map<Address, List<SymbolInformation>>> {
 
 	private static final Set<Characteristics> CHARACTERISTICS = Set.of(Characteristics.UNORDERED);
 
 	private final SymbolPreference preference;
 
-	public SymbolInformationCollector(SymbolPreference preference) {
+	public MultiSymbolInformationCollector(SymbolPreference preference) {
 		this.preference = preference;
 	}
 
@@ -72,7 +73,7 @@ public class SymbolInformationCollector
 	}
 
 	@Override
-	public java.util.function.Function<Map<Address, Set<Symbol>>, Map<Address, SymbolInformation>> finisher() {
+	public java.util.function.Function<Map<Address, Set<Symbol>>, Map<Address, List<SymbolInformation>>> finisher() {
 		return map -> {
 			return map.entrySet()
 					.stream()
@@ -83,11 +84,9 @@ public class SymbolInformationCollector
 							Symbol symbol = SymbolPreference.PRIMARY.pick(symbols).stream()
 								.findAny()
 								.orElseThrow();
-							String name = preference.pick(symbols).stream()
-								.map(s -> s.getName(true))
-								.findAny()
-								.orElseThrow();
-							return new SymbolInformation(symbol, name);
+							return preference.pick(symbols).stream()
+								.map(s -> new SymbolInformation(symbol, s.getName(true)))
+								.toList();
 						}));
 		};
 	}

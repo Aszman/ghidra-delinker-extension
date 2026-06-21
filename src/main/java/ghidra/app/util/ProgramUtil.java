@@ -14,6 +14,7 @@
 package ghidra.app.util;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Spliterators;
@@ -157,6 +158,14 @@ public abstract class ProgramUtil {
 				.collect(new SymbolInformationCollector(symbolNamePreference));
 	}
 
+	public static Map<Address, List<SymbolInformation>> getMultiSectionSymbols(Program program,
+			AddressSetView sectionSet, SymbolPreference symbolNamePreference) {
+		return StreamSupport
+				.stream(program.getSymbolTable().getAllSymbols(true).spliterator(), false)
+				.filter(symbol -> sectionSet.contains(symbol.getAddress()))
+				.collect(new MultiSymbolInformationCollector(symbolNamePreference));
+	}
+
 	public static Map<Address, SymbolInformation> getExternalSymbols(Program program,
 			AddressSetView fileSet, SymbolPreference symbolNamePreference) {
 		SymbolTable symbolTable = program.getSymbolTable();
@@ -172,6 +181,23 @@ public abstract class ProgramUtil {
 				.stream(symbolTable.getAllSymbols(true).spliterator(), false)
 				.filter(symbol -> externalRelocationTargets.contains(symbol.getAddress()))
 				.collect(new SymbolInformationCollector(symbolNamePreference));
+	}
+
+	public static Map<Address, List<SymbolInformation>> getMultiExternalSymbols(Program program,
+			AddressSetView fileSet, SymbolPreference symbolNamePreference) {
+		SymbolTable symbolTable = program.getSymbolTable();
+		RelocationTable relocationTable = RelocationTable.get(program);
+
+		Set<Address> externalRelocationTargets = StreamSupport.stream(
+			Spliterators.spliteratorUnknownSize(relocationTable.getRelocations(), 0), false)
+				.filter(r -> fileSet.contains(r.getAddress()) && !fileSet.contains(r.getTarget()))
+				.map(r -> r.getTarget())
+				.collect(Collectors.toSet());
+
+		return StreamSupport
+				.stream(symbolTable.getAllSymbols(true).spliterator(), false)
+				.filter(symbol -> externalRelocationTargets.contains(symbol.getAddress()))
+				.collect(new MultiSymbolInformationCollector(symbolNamePreference));
 	}
 
 	public static <T> boolean checkDuplicateSymbols(Stream<T> symbols,

@@ -43,6 +43,7 @@ import ghidra.app.util.EnumDropDownOption;
 import ghidra.app.util.Option;
 import ghidra.app.util.OptionUtils;
 import ghidra.app.util.ProgramUtil;
+import ghidra.app.util.SymbolInformation;
 import ghidra.app.util.SymbolPreference;
 import ghidra.app.util.exporter.coff.relocs.CoffRelocationTableBuilder;
 import ghidra.app.util.predicates.relocations.TrimSuperfluousRelativePC;
@@ -96,7 +97,7 @@ public class CoffRelocatableObjectExporter extends Exporter {
 	private RelocationTable relocationTable;
 	private Predicate<Relocation> predicateRelocation;
 	private Predicate<Symbol> predicateVisibility;
-	private Map<Address, CoffSymbol> symbolsByAddress;
+	private Map<Address, List<CoffSymbol>> symbolsByAddress;
 	private List<Section> sections;
 
 	private CoffFile coff;
@@ -235,27 +236,39 @@ public class CoffRelocatableObjectExporter extends Exporter {
 			symtab.addSection(section);
 
 			ProgramUtil
-					.getSectionSymbols(program, sectionSet, symbolNamePreference)
+					.getMultiSectionSymbols(program, sectionSet, symbolNamePreference)
 					.entrySet()
-					.forEach(entry -> {
-						Address address = entry.getKey();
-						Symbol symbol = entry.getValue().getSymbol();
-						String name = entry.getValue().getName();
+					.forEach(entryList -> {
 
-						long offset =
-							ProgramUtil.getOffsetWithinAddressSet(sectionSet, symbol.getAddress());
-						var obj = symbol.getObject();
-						byte type = 0x00;
-						if (obj instanceof Function) {
-							type |= 0x20;
+						List<CoffSymbol> coffSymbols = new ArrayList<>();
+						Address address = entryList.getKey();
+						List<SymbolInformation> symbolInfos = entryList.getValue();
+						
+						for (SymbolInformation symInfo : symbolInfos) {
+							Symbol symbol = symInfo.getSymbol();
+							String name = symInfo.getName();
+
+							long offset =
+								ProgramUtil.getOffsetWithinAddressSet(sectionSet, symbol.getAddress());
+							var obj = symbol.getObject();
+							byte type = 0x00;
+							long size = 0;
+							if (obj instanceof Function) {
+								type |= 0x20;
+								Function objFun = (Function) obj;
+								size = objFun.getBody().getNumAddresses();
+							}
+							CoffStorageClass storageClass = CoffStorageClass.IMAGE_SYM_CLASS_EXTERNAL;
+							if (predicateVisibility.test(symbol)) {
+								storageClass = CoffStorageClass.IMAGE_SYM_CLASS_STATIC;
+							}
+							if (obj instanceof Function) {
+								coffSymbols.add(symtab.addFunction(name, (int) offset, section, type, storageClass, size));
+							} else {
+								coffSymbols.add(symtab.addSymbol(name, (int) offset, section, type, storageClass));
+							}
 						}
-						CoffStorageClass storageClass = CoffStorageClass.IMAGE_SYM_CLASS_EXTERNAL;
-						if (predicateVisibility.test(symbol)) {
-							storageClass = CoffStorageClass.IMAGE_SYM_CLASS_STATIC;
-						}
-						CoffSymbol sym =
-							symtab.addSymbol(name, (int) offset, section, type, storageClass);
-						symbolsByAddress.put(address, sym);
+						symbolsByAddress.put(address, coffSymbols);
 					});
 		}
 
@@ -281,7 +294,7 @@ public class CoffRelocatableObjectExporter extends Exporter {
 					builder.getClass().getName());
 			}
 
-			Map<Relocation, CoffSymbol> relocationsToSymbols = relocations.stream()
+			Map<Relocation, List<CoffSymbol>> relocationsToSymbols = relocations.stream()
 					.collect(Collectors.toMap(r -> r, r -> symbolsByAddress.get(r.getTarget())));
 
 			builder.build(symtab, section, bytes, sectionSet, relocations, relocationsToSymbols,
@@ -463,14 +476,17 @@ public class CoffRelocatableObjectExporter extends Exporter {
 	}
 
 	private void computeExternalSymbols(Memory memory) {
-		ProgramUtil.getExternalSymbols(program, fileSet, symbolNamePreference)
+		ProgramUtil.getMultiExternalSymbols(program, fileSet, symbolNamePreference)
 				.entrySet()
-				.forEach(entry -> {
-					Address address = entry.getKey();
-					String name = entry.getValue().getName();
-
-					CoffSymbol sym = symtab.addUndefined(name);
-					symbolsByAddress.put(address, sym);
+				.forEach(entryList -> {
+					List<CoffSymbol> coffSymbols = new ArrayList<>();
+					Address address = entryList.getKey();
+					List<SymbolInformation> symbolInfos = entryList.getValue();
+					for (SymbolInformation symInfo : symbolInfos) {
+						String name = symInfo.getName();
+						coffSymbols.add(symtab.addUndefined(name));
+					}
+					symbolsByAddress.put(address, coffSymbols);
 				});
 	}
 

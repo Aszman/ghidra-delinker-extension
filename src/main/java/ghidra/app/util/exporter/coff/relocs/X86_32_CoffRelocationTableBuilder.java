@@ -39,11 +39,11 @@ public class X86_32_CoffRelocationTableBuilder implements CoffRelocationTableBui
 	@Override
 	public void build(CoffSymbolTable symtab, CoffSection section, byte[] bytes,
 			AddressSetView addressSet, List<Relocation> relocations,
-			Map<Relocation, CoffSymbol> relocationsToSymbols, MessageLog log) {
+			Map<Relocation, List<CoffSymbol>> relocationsToSymbols, MessageLog log) {
 		CoffRelocationTable relTable = section.getRelocations();
 
 		for (Relocation relocation : relocations) {
-			CoffSymbol symbol = relocationsToSymbols.get(relocation);
+			List<CoffSymbol> symbol = relocationsToSymbols.get(relocation);
 
 			if (relocation instanceof RelocationAbsolute) {
 				process(relTable, bytes, addressSet, (RelocationAbsolute) relocation, symbol, log);
@@ -60,7 +60,7 @@ public class X86_32_CoffRelocationTableBuilder implements CoffRelocationTableBui
 
 	private void process(CoffRelocationTable relTable, byte[] bytes,
 			AddressSetView addressSet, RelocationAbsolute relocation,
-			CoffSymbol symbol, MessageLog log) {
+			List<CoffSymbol> symbol, MessageLog log) {
 		DataConverter dc = LittleEndianDataConverter.INSTANCE;
 		int width = relocation.getWidth();
 		long bitmask = relocation.getBitmask();
@@ -81,7 +81,7 @@ public class X86_32_CoffRelocationTableBuilder implements CoffRelocationTableBui
 
 	private void process(CoffRelocationTable relTable, byte[] bytes,
 			AddressSetView addressSet, RelocationRelativePC relocation,
-			CoffSymbol symbol, MessageLog log) {
+			List<CoffSymbol> symbol, MessageLog log) {
 		DataConverter dc = LittleEndianDataConverter.INSTANCE;
 		int width = relocation.getWidth();
 		long bitmask = relocation.getBitmask();
@@ -101,10 +101,12 @@ public class X86_32_CoffRelocationTableBuilder implements CoffRelocationTableBui
 	}
 
 	private void emit(CoffRelocationTable relTable, AddressSetView addressSetView,
-			Relocation relocation, CoffRelocationType type, CoffSymbol symbol) {
+			Relocation relocation, CoffRelocationType type, List<CoffSymbol> symbol) {
 		int offset = (int) getOffsetWithinAddressSet(addressSetView, relocation.getAddress());
 
-		relTable.add(offset, symbol, type);
+		for (CoffSymbol sym : symbol) {
+			relTable.add(offset, sym, type);
+		}
 	}
 
 	@Override

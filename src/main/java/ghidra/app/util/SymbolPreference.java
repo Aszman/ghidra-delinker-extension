@@ -14,7 +14,9 @@
 package ghidra.app.util;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 
@@ -54,14 +56,18 @@ public enum SymbolPreference {
 		return label;
 	}
 
-	public Symbol pick(Collection<Symbol> candidates) {
-		return pickPreferred(candidates).orElse(picker.apply(candidates));
+	public List<Symbol> pick(Collection<Symbol> candidates) {
+		List<Symbol> preferred = pickPreferred(candidates);
+		if (!preferred.isEmpty()) {
+			return preferred;
+		}
+		return Collections.singletonList(picker.apply(candidates));
 	}
 
-	private Optional<Symbol> pickPreferred(Collection<Symbol> symbols) {
+	private List<Symbol> pickPreferred(Collection<Symbol> symbols) {
 		return symbols.stream()
 			.filter(s -> preferredNames.contains(s.getName(true)))
-			.findAny();
+			.toList();
 	}
 
 	private static Symbol pickPrimary(Collection<Symbol> symbols) {
